@@ -200,3 +200,15 @@
 .drive-warning span{display:flex;flex-direction:column;gap:2px}
 .drive-warning strong{font-size:10px}.drive-warning small{font-size:9px;color:#7b8a86}
 @media(max-width:650px){.drive-connection{align-items:flex-start;flex-wrap:wrap;padding:21px}.drive-connection>div{min-width:calc(100% - 78px)}.drive-connection .primary{margin-left:76px}.drive-warning{align-items:flex-start}}
+
+/* Autenticação persistente */
+.auth-notice{margin:-2px 0 13px;padding:10px 11px;border:1px solid #cce3da;border-radius:7px;background:#eef7f3;color:#35675c;font-size:9px;line-height:1.5}
+.auth-options>span{font-size:9px;color:#82908c}
+.auth-submit:disabled{cursor:wait;opacity:.72}
+.auth-back{width:100%;margin-top:12px;padding:7px;border:0;background:transparent;color:#49736a;font-size:10px;display:flex;align-items:center;justify-content:center;gap:5px}
+.password-page{min-height:100svh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 20% 15%,#d8e9e3,transparent 35%),linear-gradient(145deg,#0d3835,#22655c)}
+.password-card{width:min(430px,100%)}
+.password-card>.auth-card-icon{margin:0 auto 14px}
+.app-loading{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f1f5f3;color:#46625c;font-size:11px}
+.app-loading span{width:28px;height:28px;border:3px solid #cbded8;border-top-color:#28675f;border-radius:50%;animation:auth-spin .8s linear infinite}
+@keyframes auth-spin{to{transform:rotate(360deg)}}

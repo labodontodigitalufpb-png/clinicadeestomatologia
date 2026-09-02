@@ -44,6 +44,10 @@ O painel administrativo possui uma tela para autorizar uma conta do Google Drive
 
 Nesta fase, a integração somente valida a conta. O envio de prontuários permanece desabilitado até a implantação do banco, da autenticação real e das regras de autorização no backend.
 
+## Autenticação persistente
+
+O frontend usa Supabase Auth quando `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` estão configuradas. Execute `supabase/setup.sql` uma vez no SQL Editor antes de habilitar essas variáveis na Vercel. O script cria perfis protegidos por RLS e força todo autocadastro a entrar como aluno; professores devem ser promovidos administrativamente.
+
 ## Direção de arquitetura
 
 ```text

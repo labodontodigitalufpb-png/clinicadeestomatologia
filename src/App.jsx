@@ -7,6 +7,7 @@ import {
   Users, X, Eye, EyeOff, LockKeyhole, Mail, Download, CheckCircle2, Pencil, Trash2,
 } from 'lucide-react';
 import { patients as seedPatients, statusTone } from './data';
+import { supabase, supabaseConfigured } from './supabase';
 
 const CURRENT_SEMESTER = '2026.2';
 
@@ -35,25 +36,37 @@ function Logo() {
   return <div className="brand"><div className="sidebar-brand-lockup"><img className="brand-logo" src="/assets/logo-clinica-estomatologia-ufpb.png" alt="Clínica de Estomatologia UFPB – Gestão, Registro e Evolução"/><img className="partner-logo" src="/assets/logo-labodigit-ufpb.jpg" alt="LaboDigit – Laboratório de Odontologia Digital PPGO/UFPB"/></div></div>;
 }
 
-function AuthPage({ accounts, onAuth, onRegister }) {
+function AuthPage({ onLogin, onRegister, onResetPassword }) {
   const [mode, setMode] = useState('login');
   const [role, setRole] = useState('student');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const submit = (event) => {
+  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+  const changeMode = nextMode => { setMode(nextMode); setError(''); setNotice(''); };
+  const submit = async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const email = String(form.get('email')).trim().toLowerCase(); const password = String(form.get('password'));
-    if (mode === 'login') {
-      const account = accounts.find(item => item.email.toLowerCase() === email && item.password === password && item.role === role);
-      if (!account) { setError('E-mail, senha ou perfil não conferem. Verifique os dados e tente novamente.'); return; }
-      setError(''); onAuth(account); return;
-    }
-    if (password !== form.get('confirmation')) { setError('As senhas informadas não são iguais.'); return; }
-    if (accounts.some(item => item.email.toLowerCase() === email)) { setError('Este e-mail já possui cadastro.'); return; }
-    const account = { id: `user-${Date.now()}`, role, name: form.get('name'), email, password, registration: form.get('registration') };
-    onRegister(account); setError(''); onAuth(account);
+    const email = String(form.get('email')).trim().toLowerCase();
+    try {
+      setBusy(true); setError(''); setNotice('');
+      if (mode === 'forgot') {
+        await onResetPassword(email);
+        setNotice('Se o e-mail estiver cadastrado, você receberá um link para criar uma nova senha.');
+        return;
+      }
+      const password = String(form.get('password'));
+      if (mode === 'login') { await onLogin({ email, password, role }); return; }
+      if (role === 'admin') throw new Error('Cadastros de professores são criados somente pela administração.');
+      if (password !== form.get('confirmation')) throw new Error('As senhas informadas não são iguais.');
+      const message = await onRegister({ name: String(form.get('name')).trim(), registration: String(form.get('registration')).trim(), email, password });
+      setNotice(message || 'Cadastro criado. Confirme o endereço pelo e-mail enviado antes de entrar.');
+    } catch (submitError) {
+      setError(submitError.message || 'Não foi possível concluir. Tente novamente.');
+    } finally { setBusy(false); }
   };
+  const title = mode === 'login' ? 'Bem-vindo de volta' : mode === 'register' ? 'Criar uma conta' : 'Recuperar senha';
+  const subtitle = mode === 'login' ? 'Entre com suas credenciais institucionais.' : mode === 'register' ? 'Cadastre seu acesso acadêmico ao sistema.' : 'Informe o e-mail cadastrado para receber o link de recuperação.';
   return <div className="auth-page">
     <section className="auth-intro">
       <div className="auth-brand-lockup"><div className="auth-brand"><img src="/assets/logo-clinica-estomatologia-ufpb.png" alt="Clínica de Estomatologia UFPB"/></div><div className="auth-partner-brand"><img src="/assets/logo-labodigit-ufpb.jpg" alt="LaboDigit – Laboratório de Odontologia Digital PPGO/UFPB"/></div></div>
@@ -61,21 +74,36 @@ function AuthPage({ accounts, onAuth, onRegister }) {
         <div className="auth-benefits"><div><span><ClipboardList size={19}/></span><p><strong>Guia Clínico organizado</strong><small>Dados clínicos reunidos em um só lugar.</small></p></div><div><span><Activity size={19}/></span><p><strong>Acompanhamento longitudinal</strong><small>Evoluções, imagens e documentos em uma linha do tempo.</small></p></div><div><span><ShieldCheck size={19}/></span><p><strong>Acesso individual</strong><small>Cada aluno acessa somente os pacientes da sua conta.</small></p></div></div>
       </div><p className="auth-university">© 2026 Universidade Federal da Paraíba · Ambiente acadêmico</p>
     </section>
-    <section className="auth-access"><div className="auth-card"><div className="auth-card-head"><span className="auth-card-icon"><Stethoscope size={22}/></span><p className="eyebrow">ACESSO AO SISTEMA</p><h2>{mode === 'login' ? 'Bem-vindo de volta' : 'Criar uma conta'}</h2><p>{mode === 'login' ? 'Entre com suas credenciais institucionais.' : 'Cadastre seu acesso acadêmico ao sistema.'}</p></div>
-      <div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setError('')}}>Entrar</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setError('')}}>Cadastrar</button></div>
+    <section className="auth-access"><div className="auth-card"><div className="auth-card-head"><span className="auth-card-icon"><Stethoscope size={22}/></span><p className="eyebrow">ACESSO AO SISTEMA</p><h2>{title}</h2><p>{subtitle}</p></div>
+      {mode !== 'forgot' && <div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>changeMode('login')}>Entrar</button><button className={mode==='register'?'active':''} onClick={()=>changeMode('register')}>Cadastrar</button></div>}
       <form className="auth-form" onSubmit={submit}>
-        <div className="role-choice"><button type="button" className={role==='student'?'active':''} onClick={()=>setRole('student')}><GraduationCap size={20}/><span><strong>Aluno</strong><small>Acesso individual</small></span></button><button type="button" className={role==='admin'?'active':''} onClick={()=>setRole('admin')}><Stethoscope size={20}/><span><strong>Professor</strong><small>Supervisão geral</small></span></button></div>
+        {mode !== 'forgot' && <div className="role-choice"><button type="button" className={role==='student'?'active':''} onClick={()=>setRole('student')}><GraduationCap size={20}/><span><strong>Aluno</strong><small>Acesso individual</small></span></button><button type="button" className={role==='admin'?'active':''} onClick={()=>setRole('admin')}><Stethoscope size={20}/><span><strong>Professor</strong><small>{mode==='register'?'Cadastro administrativo':'Supervisão geral'}</small></span></button></div>}
         {mode === 'register' && <><label>Nome completo<div className="auth-input"><Users size={17}/><input name="name" required placeholder="Seu nome completo"/></div></label><label>{role==='student'?'Matrícula':'SIAPE'}<div className="auth-input"><ClipboardList size={17}/><input name="registration" required placeholder={role==='student'?'Ex.: 20260001':'Ex.: 1234567'}/></div></label></>}
         <label>E-mail institucional<div className="auth-input"><Mail size={17}/><input name="email" type="email" required placeholder="nome@academico.ufpb.br"/></div></label>
-        <label>Senha<div className="auth-input"><LockKeyhole size={17}/><input name="password" type={showPassword?'text':'password'} required minLength="6" placeholder="Digite sua senha"/><button type="button" onClick={()=>setShowPassword(!showPassword)}>{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>
-        {mode === 'register' && <label>Confirmar senha<div className="auth-input"><LockKeyhole size={17}/><input name="confirmation" type="password" required minLength="6" placeholder="Repita sua senha"/></div></label>}
+        {mode !== 'forgot' && <label>Senha<div className="auth-input"><LockKeyhole size={17}/><input name="password" type={showPassword?'text':'password'} required minLength="8" placeholder="Digite sua senha"/><button type="button" onClick={()=>setShowPassword(!showPassword)}>{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>}
+        {mode === 'register' && <label>Confirmar senha<div className="auth-input"><LockKeyhole size={17}/><input name="confirmation" type="password" required minLength="8" placeholder="Repita sua senha"/></div></label>}
         {error && <div className="auth-error">{error}</div>}
-        {mode === 'login' && <div className="auth-options"><label><input type="checkbox"/>Lembrar acesso</label><button type="button">Esqueci minha senha</button></div>}
-        <button className="primary auth-submit" type="submit">{mode==='login'?'Entrar no sistema':'Criar cadastro'}<ChevronRight size={17}/></button>
+        {notice && <div className="auth-notice">{notice}</div>}
+        {mode === 'login' && <div className="auth-options"><span>Sessão protegida neste dispositivo</span><button type="button" onClick={()=>changeMode('forgot')}>Esqueci minha senha</button></div>}
+        <button className="primary auth-submit" type="submit" disabled={busy}>{busy?'Aguarde...':mode==='login'?'Entrar no sistema':mode==='register'?'Criar cadastro':'Enviar link'}{!busy&&<ChevronRight size={17}/>}</button>
+        {mode === 'forgot' && <button className="auth-back" type="button" onClick={()=>changeMode('login')}><ArrowLeft size={15}/>Voltar para entrar</button>}
       </form>
       <div className="auth-security"><ShieldCheck size={15}/><span>Ambiente acadêmico com acesso individual e protegido</span></div>
     </div></section>
   </div>;
+}
+
+function ResetPasswordPage({ onSave, onCancel }) {
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async event => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get('password'));
+    if (password !== form.get('confirmation')) return setError('As senhas informadas não são iguais.');
+    try { setBusy(true); setError(''); await onSave(password); } catch (saveError) { setError(saveError.message || 'Não foi possível atualizar a senha.'); } finally { setBusy(false); }
+  };
+  return <div className="password-page"><form className="auth-card password-card" onSubmit={submit}><span className="auth-card-icon"><LockKeyhole size={22}/></span><div className="auth-card-head"><p className="eyebrow">RECUPERAÇÃO DE ACESSO</p><h2>Criar nova senha</h2><p>Escolha uma senha com pelo menos oito caracteres.</p></div><label>Nova senha<div className="auth-input"><LockKeyhole size={17}/><input name="password" type="password" minLength="8" required autoFocus/></div></label><label>Confirmar nova senha<div className="auth-input"><LockKeyhole size={17}/><input name="confirmation" type="password" minLength="8" required/></div></label>{error&&<div className="auth-error">{error}</div>}<button className="primary auth-submit" disabled={busy}>{busy?'Salvando...':'Salvar nova senha'}</button><button className="auth-back" type="button" onClick={onCancel}>Cancelar</button></form></div>;
 }
 
 function Badge({ status }) {
@@ -268,9 +296,59 @@ function PlaceholderPage({ title }) {
 }
 
 export default function App() {
-  const [accounts, setAccounts] = useState(demoAccounts); const [user, setUser] = useState(null); const [active, setActive] = useState('Visão geral'); const [selected, setSelected] = useState(null); const [mobileOpen, setMobileOpen] = useState(false); const [semester, setSemester] = useState(CURRENT_SEMESTER); const [patients, setPatients] = useState(()=>seedPatients.map(patient=>({...patient,semester:patient.semester||CURRENT_SEMESTER}))); const isAdmin = user?.role === 'admin';
+  const [accounts, setAccounts] = useState(demoAccounts); const [user, setUser] = useState(null); const [authReady, setAuthReady] = useState(!supabaseConfigured); const [recoveryMode, setRecoveryMode] = useState(false); const [active, setActive] = useState('Visão geral'); const [selected, setSelected] = useState(null); const [mobileOpen, setMobileOpen] = useState(false); const [semester, setSemester] = useState(CURRENT_SEMESTER); const [patients, setPatients] = useState(()=>seedPatients.map(patient=>({...patient,semester:patient.semester||CURRENT_SEMESTER}))); const isAdmin = user?.role === 'admin';
   const semesters = useMemo(()=>[...new Set([CURRENT_SEMESTER,...patients.map(patient=>patient.semester)])].sort().reverse(),[patients]);
-  if (!user) return <AuthPage accounts={accounts} onAuth={setUser} onRegister={account=>setAccounts(current=>[...current,account])}/>;
+  useEffect(() => {
+    if (!supabase) return;
+    let activeSubscription = true;
+    const loadProfile = async authUser => {
+      if (!authUser) { if (activeSubscription) setUser(null); return null; }
+      const { data: profile, error } = await supabase.from('profiles').select('id, full_name, registration, role').eq('id', authUser.id).single();
+      if (error) throw error;
+      const appUser = { id: authUser.id, email: authUser.email, name: profile.full_name, registration: profile.registration, role: profile.role };
+      if (activeSubscription) setUser(appUser);
+      return appUser;
+    };
+    supabase.auth.getSession().then(({ data })=>loadProfile(data.session?.user)).catch(()=>setUser(null)).finally(()=>setAuthReady(true));
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
+      setTimeout(()=>loadProfile(session?.user).catch(()=>setUser(null)).finally(()=>setAuthReady(true)),0);
+    });
+    return () => { activeSubscription = false; data.subscription.unsubscribe(); };
+  }, []);
+  const loadCurrentProfile = async authUser => {
+    const { data: profile, error } = await supabase.from('profiles').select('id, full_name, registration, role').eq('id', authUser.id).single();
+    if (error) throw new Error('Perfil não encontrado. Confirme se o banco foi configurado corretamente.');
+    return { id: authUser.id, email: authUser.email, name: profile.full_name, registration: profile.registration, role: profile.role };
+  };
+  const login = async ({ email, password, role }) => {
+    if (!supabase) {
+      const account = accounts.find(item=>item.email.toLowerCase()===email&&item.password===password&&item.role===role);
+      if (!account) throw new Error('E-mail, senha ou perfil não conferem.');
+      setUser(account); return;
+    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
+    const appUser = await loadCurrentProfile(data.user);
+    if (appUser.role !== role) { await supabase.auth.signOut(); setUser(null); throw new Error(`Esta conta está cadastrada como ${appUser.role==='admin'?'Professor':'Aluno'}. Selecione o perfil correto.`); }
+    setUser(appUser);
+  };
+  const register = async ({ name, registration, email, password }) => {
+    if (!supabase) { const account = { id:`user-${Date.now()}`,role:'student',name,email,password,registration }; setAccounts(current=>[...current,account]); setUser(account); return ''; }
+    const { data, error } = await supabase.auth.signUp({ email, password, options:{ data:{ full_name:name, registration }, emailRedirectTo:window.location.origin } });
+    if (error) throw new Error(error.message);
+    if (data.session && data.user) setUser(await loadCurrentProfile(data.user));
+    return data.session ? 'Cadastro criado com sucesso.' : 'Cadastro criado. Confirme o endereço pelo e-mail enviado antes de entrar.';
+  };
+  const resetPassword = async email => {
+    if (!supabase) throw new Error('A recuperação estará disponível após configurar o Supabase na Vercel.');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo:`${window.location.origin}/?recovery=1` });
+    if (error) throw new Error(error.message);
+  };
+  const saveNewPassword = async password => { const { error } = await supabase.auth.updateUser({ password }); if (error) throw new Error(error.message); setRecoveryMode(false); };
+  if (!authReady) return <div className="app-loading"><span/><strong>Carregando acesso seguro...</strong></div>;
+  if (recoveryMode) return <ResetPasswordPage onSave={saveNewPassword} onCancel={()=>setRecoveryMode(false)}/>;
+  if (!user) return <AuthPage onLogin={login} onRegister={register} onResetPassword={resetPassword}/>;
   const openPatient = p => setSelected(p); const navigate = label => { setSelected(null); setActive(label); };
   const createPatient = p => { setPatients(current => current.some(item=>item.id===p.id) ? current : [p,...current]); openPatient(p); };
   const updatePatient = updated => { setPatients(current=>current.map(item=>item.id===updated.id?updated:item)); setSelected(updated); };
@@ -285,5 +363,6 @@ export default function App() {
   else if (active === 'Usuários' && isAdmin) content = <UsersManagement accounts={accounts} onUpdate={updateAccount} onDelete={deleteAccount}/>;
   else if (active === 'Google Drive' && isAdmin) content = <GoogleDriveSettings/>;
   else content = <PlaceholderPage title={active}/>;
-  return <div className="app-shell"><Sidebar active={active} setActive={navigate} isAdmin={isAdmin} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={user} onLogout={()=>{setUser(null);setSelected(null);setActive('Visão geral')}}/>{mobileOpen&&<div className="mobile-scrim" onClick={()=>setMobileOpen(false)}/>}<div className="main-shell"><Header setMobileOpen={setMobileOpen} isAdmin={isAdmin} semester={semester}/>{content}<footer><span>Clínica de Estomatologia · UFPB</span><span>Período {semester} · Sessão individual: {user.name} · Dados fictícios</span></footer></div></div>;
+  const logout = async () => { if (supabase) await supabase.auth.signOut(); setUser(null); setSelected(null); setActive('Visão geral'); };
+  return <div className="app-shell"><Sidebar active={active} setActive={navigate} isAdmin={isAdmin} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={user} onLogout={logout}/>{mobileOpen&&<div className="mobile-scrim" onClick={()=>setMobileOpen(false)}/>}<div className="main-shell"><Header setMobileOpen={setMobileOpen} isAdmin={isAdmin} semester={semester}/>{content}<footer><span>Clínica de Estomatologia · UFPB</span><span>Período {semester} · Sessão individual: {user.name} · Dados fictícios</span></footer></div></div>;
 }
