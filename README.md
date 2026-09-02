@@ -38,6 +38,12 @@ npm run preview
 
 Esta entrega é um protótipo funcional de frontend. Os dados ficam em memória e são reiniciados ao recarregar a página. Antes de uso clínico real, ainda será necessário implementar API, PostgreSQL, autenticação, autorização individual no backend/banco, auditoria persistente, armazenamento privado, backups e demais controles da LGPD.
 
+## Preparação da integração com Google Drive
+
+O painel administrativo possui uma tela para autorizar uma conta do Google Drive por OAuth 2.0. Configure na Vercel as variáveis documentadas em `.env.example`. O token permanente é obtido pela rota `/api/google/connect` e deve ser armazenado apenas como variável privada `GOOGLE_REFRESH_TOKEN`.
+
+Nesta fase, a integração somente valida a conta. O envio de prontuários permanece desabilitado até a implantação do banco, da autenticação real e das regras de autorização no backend.
+
 ## Direção de arquitetura
 
 ```text

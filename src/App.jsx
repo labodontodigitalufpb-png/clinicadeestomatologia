@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, Archive, ArrowLeft, Bell, BookOpen, CalendarDays, Camera,
   ChevronDown, ChevronRight, ClipboardList, Clock3, FileText, FlaskConical,
@@ -21,6 +21,7 @@ const navItems = [
 const adminItems = [
   { label: 'Todos os casos', icon: BookOpen },
   { label: 'Usuários', icon: Users },
+  { label: 'Google Drive', icon: FolderOpen },
   { label: 'Relatórios', icon: FileText },
 ];
 
@@ -245,6 +246,23 @@ function UsersManagement({ accounts, onUpdate, onDelete }) {
   </main>;
 }
 
+function GoogleDriveSettings() {
+  const [connection, setConnection] = useState({ status: 'loading' });
+  useEffect(() => {
+    fetch('/api/google/status').then(response=>response.json()).then(setConnection).catch(()=>setConnection({ status: 'unavailable' }));
+  }, []);
+  const content = {
+    loading: { title: 'Verificando conexão', text: 'Aguarde enquanto consultamos a configuração da Vercel.' },
+    configuration_required: { title: 'Configuração necessária', text: 'Cadastre as credenciais OAuth nas variáveis privadas da Vercel e faça um novo deploy.' },
+    authorization_required: { title: 'Autorizar sua conta Google', text: 'Conecte a conta proprietária do Meu Drive para permitir a criação das pastas do aplicativo.' },
+    invalid_token: { title: 'Autorização expirada', text: 'O token armazenado não é mais válido. Autorize novamente a conta Google.' },
+    unavailable: { title: 'Serviço indisponível', text: 'Não foi possível consultar a integração neste momento.' },
+    connected: { title: 'Google Drive conectado', text: `Conta autorizada: ${connection.account?.emailAddress || connection.account?.displayName || 'Google Drive'}` },
+  }[connection.status] || { title: 'Configuração do Google Drive', text: 'Verifique a integração.' };
+  const canConnect = ['authorization_required','invalid_token'].includes(connection.status);
+  return <main className="page narrow-page"><div className="page-title"><div><p className="eyebrow">INTEGRAÇÕES</p><h1>Google Drive</h1><p>Gerencie a conta usada para armazenar fotografias, exames e documentos.</p></div></div><section className={`panel drive-connection ${connection.status}`}><span className="drive-mark"><FolderOpen size={28}/></span><div><p className="eyebrow">ARMAZENAMENTO EXTERNO</p><h2>{content.title}</h2><p>{content.text}</p>{connection.status==='configuration_required'&&<small>Variáveis necessárias: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_STATE_SECRET e GOOGLE_REDIRECT_URI.</small>}{connection.status==='connected'&&<small>Escopo limitado aos arquivos criados pelo aplicativo.</small>}</div>{canConnect&&<a className="primary" href="/api/google/connect">Conectar Google Drive</a>}</section><div className="drive-warning"><ShieldCheck size={18}/><span><strong>Integração em preparação</strong><small>O envio de prontuários será habilitado somente após a implantação do banco e da autorização real dos usuários.</small></span></div></main>;
+}
+
 function PlaceholderPage({ title }) {
   return <main className="page"><div className="page-title"><div><p className="eyebrow">CLÍNICA-ESCOLA</p><h1>{title}</h1><p>Organização segura e longitudinal dos atendimentos.</p></div></div><section className="panel placeholder-panel"><span><Archive size={26}/></span><h2>{title}</h2><p>O módulo está pronto para receber os registros desta etapa.</p><button className="primary"><Plus size={17}/>Novo registro</button></section></main>;
 }
@@ -265,6 +283,7 @@ export default function App() {
   else if (active === 'Meus casos' || active === 'Todos os casos') content = <CasesPage isAdmin={active === 'Todos os casos' || isAdmin && active === 'Todos os casos'} openPatient={openPatient} patients={patients} user={user} semester={semester} semesters={semesters} onSemesterChange={setSemester}/>;
   else if (active === 'Novo paciente') content = <NewPatient onCreate={createPatient} user={user} semester={semester}/>;
   else if (active === 'Usuários' && isAdmin) content = <UsersManagement accounts={accounts} onUpdate={updateAccount} onDelete={deleteAccount}/>;
+  else if (active === 'Google Drive' && isAdmin) content = <GoogleDriveSettings/>;
   else content = <PlaceholderPage title={active}/>;
   return <div className="app-shell"><Sidebar active={active} setActive={navigate} isAdmin={isAdmin} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={user} onLogout={()=>{setUser(null);setSelected(null);setActive('Visão geral')}}/>{mobileOpen&&<div className="mobile-scrim" onClick={()=>setMobileOpen(false)}/>}<div className="main-shell"><Header setMobileOpen={setMobileOpen} isAdmin={isAdmin} semester={semester}/>{content}<footer><span>Clínica de Estomatologia · UFPB</span><span>Período {semester} · Sessão individual: {user.name} · Dados fictícios</span></footer></div></div>;
 }

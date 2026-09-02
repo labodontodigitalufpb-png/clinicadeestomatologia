@@ -185,3 +185,18 @@
   .auth-brand-lockup .auth-brand,.auth-partner-brand{width:76px;height:76px;border-radius:13px;padding:4px}
 }
 @media(max-width:760px){.clinical-history-grid{grid-template-columns:1fr}}
+
+/* Integração administrativa com o Google Drive */
+.drive-connection{min-height:190px;padding:28px;display:flex;align-items:center;gap:18px}
+.drive-connection>div{flex:1}
+.drive-connection h2{margin:0 0 7px;font-family:'Newsreader',serif;font-size:27px;color:#183934}
+.drive-connection>div>p:not(.eyebrow){margin:0;color:#6f7e7a;font-size:11px;line-height:1.6}
+.drive-connection small{display:block;margin-top:9px;color:#7e8c88;font-size:9px;line-height:1.5}
+.drive-mark{width:58px;height:58px;display:grid;place-items:center;flex:none;border-radius:16px;background:#e7f1ee;color:#32695f}
+.drive-connection.connected{border-color:#bcd8cf;background:linear-gradient(120deg,#fff,#f2f8f6)}
+.drive-connection.connected .drive-mark{background:#dcefe8;color:#23604f}
+.drive-connection .primary{text-decoration:none;white-space:nowrap}
+.drive-warning{display:flex;align-items:center;gap:10px;margin-top:13px;padding:13px 16px;border:1px solid #e1e7e4;border-radius:10px;background:#f8faf9;color:#5b746d}
+.drive-warning span{display:flex;flex-direction:column;gap:2px}
+.drive-warning strong{font-size:10px}.drive-warning small{font-size:9px;color:#7b8a86}
+@media(max-width:650px){.drive-connection{align-items:flex-start;flex-wrap:wrap;padding:21px}.drive-connection>div{min-width:calc(100% - 78px)}.drive-connection .primary{margin-left:76px}.drive-warning{align-items:flex-start}}
