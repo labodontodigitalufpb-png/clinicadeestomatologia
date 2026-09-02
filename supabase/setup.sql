@@ -77,6 +77,16 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function private.handle_new_user();
 
+-- Cria perfis para contas que já existiam antes da instalação deste gatilho.
+insert into public.profiles (id, full_name, registration, role)
+select
+  user_record.id,
+  coalesce(nullif(trim(user_record.raw_user_meta_data ->> 'full_name'), ''), split_part(user_record.email, '@', 1)),
+  coalesce(nullif(trim(user_record.raw_user_meta_data ->> 'registration'), ''), 'Não informada'),
+  'student'
+from auth.users as user_record
+on conflict (id) do nothing;
+
 -- Para promover o primeiro professor, substitua o e-mail e execute separadamente:
 -- update public.profiles set role = 'admin'
 -- where id = (select id from auth.users where email = 'professor@ufpb.br');
