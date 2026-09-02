@@ -1,14 +1,16 @@
 import crypto from 'node:crypto';
 
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const PRODUCTION_REDIRECT_URI = 'https://clinicadeestomatologia.vercel.app/api/google/callback';
 
 export function googleConfig() {
+  const configuredRedirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
   return {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
     stateSecret: process.env.GOOGLE_STATE_SECRET,
-    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'https://clinicadeestomatologia.vercel.app/api/google/callback',
+    redirectUri: configuredRedirectUri?.startsWith('https://') ? configuredRedirectUri : PRODUCTION_REDIRECT_URI,
   };
 }
 
