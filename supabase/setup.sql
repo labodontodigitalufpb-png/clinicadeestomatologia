@@ -8,11 +8,14 @@ grant usage on schema private to authenticated;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null check (char_length(full_name) between 2 and 160),
+  email text,
   registration text not null check (char_length(registration) between 2 and 40),
   role text not null default 'student' check (role in ('student', 'admin')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists email text;
 
 alter table public.profiles enable row level security;
 
@@ -58,10 +61,11 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, full_name, registration, role)
+  insert into public.profiles (id, full_name, email, registration, role)
   values (
     new.id,
     coalesce(nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''), split_part(new.email, '@', 1)),
+    new.email,
     coalesce(nullif(trim(new.raw_user_meta_data ->> 'registration'), ''), 'Não informada'),
     'student'
   )
@@ -78,14 +82,20 @@ create trigger on_auth_user_created
   for each row execute function private.handle_new_user();
 
 -- Cria perfis para contas que já existiam antes da instalação deste gatilho.
-insert into public.profiles (id, full_name, registration, role)
+insert into public.profiles (id, full_name, email, registration, role)
 select
   user_record.id,
   coalesce(nullif(trim(user_record.raw_user_meta_data ->> 'full_name'), ''), split_part(user_record.email, '@', 1)),
+  user_record.email,
   coalesce(nullif(trim(user_record.raw_user_meta_data ->> 'registration'), ''), 'Não informada'),
   'student'
 from auth.users as user_record
 on conflict (id) do nothing;
+
+update public.profiles as profile
+set email = user_record.email
+from auth.users as user_record
+where profile.id = user_record.id and profile.email is distinct from user_record.email;
 
 -- Para promover o primeiro professor, substitua o e-mail e execute separadamente:
 -- update public.profiles set role = 'admin'

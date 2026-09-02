@@ -212,3 +212,13 @@
 .app-loading{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#f1f5f3;color:#46625c;font-size:11px}
 .app-loading span{width:28px;height:28px;border:3px solid #cbded8;border-top-color:#28675f;border-radius:50%;animation:auth-spin .8s linear infinite}
 @keyframes auth-spin{to{transform:rotate(360deg)}}
+
+/* Gestão persistente de alunos e professores */
+.page-error{margin:-14px 0 16px;padding:11px 14px;border:1px solid #ecd4cf;border-radius:9px;background:#f9ece9;color:#8a493e;font-size:10px}
+.users-count{align-self:center;white-space:nowrap;color:#70817c;font-size:9px;font-weight:700}
+.professor-avatar{background:#e8e3d4;color:#745f32}
+.professor-role{background:#f1ecdf;color:#75602f}
+.active-user{display:inline-flex;align-items:center;gap:5px;color:#39705f;font-size:9px;font-weight:700}
+.active-user:before{content:"";width:6px;height:6px;border-radius:50%;background:#51a184}
+.compact-modal label small{color:#88948f;font-size:8px;font-weight:400;line-height:1.4}
+@media(max-width:760px){.users-count{align-self:flex-start}.users-panel .filters{gap:12px}}
