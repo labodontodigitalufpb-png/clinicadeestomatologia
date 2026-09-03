@@ -1,0 +1,28 @@
+{
+  "name": "Clínica de Estomatologia – UFPB",
+  "short_name": "Estomatologia",
+  "description": "Gestão acadêmica de casos clínicos da Clínica de Estomatologia da UFPB.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#123f3b",
+  "theme_color": "#123f3b",
+  "lang": "pt-BR",
+  "categories": ["medical", "education", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
