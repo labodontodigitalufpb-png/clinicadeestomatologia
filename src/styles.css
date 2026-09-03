@@ -222,3 +222,42 @@
 .active-user:before{content:"";width:6px;height:6px;border-radius:50%;background:#51a184}
 .compact-modal label small{color:#88948f;font-size:8px;font-weight:400;line-height:1.4}
 @media(max-width:760px){.users-count{align-self:flex-start}.users-panel .filters{gap:12px}}
+
+/* Consentimento e assinaturas clínicas */
+.consent-box{display:flex;align-items:flex-start;gap:14px;padding:18px;border:1px solid #cfe0da;border-radius:11px;background:#f3f8f6;color:#42635c}
+.consent-box>svg{flex:none;margin-top:2px;color:#2d6a5e}
+.consent-box strong{font-size:12px;color:#264c45}
+.consent-box p{margin:7px 0 12px;font-size:10px;line-height:1.65;color:#5f746e}
+.consent-check{margin:0!important;display:flex!important;flex-direction:row!important;align-items:flex-start;gap:9px!important;font-weight:500!important;line-height:1.5;color:#405d57!important}
+.consent-check input{width:17px;height:17px;flex:none;margin:0;accent-color:#174a44}
+.consent-name{margin-top:16px}
+.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:5px}
+.signature-pad{overflow:hidden;border:1px solid #d4dfdb;border-radius:11px;background:#fff}
+.signature-pad-head{min-height:50px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5ebe8;background:#fafcfb}
+.signature-pad-head>span{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:2px 7px;color:#36675e}
+.signature-pad-head strong{font-size:10px;color:#314b46}
+.signature-pad-head small{grid-column:2;font-size:8px;color:#82908c}
+.signature-pad-head button{border:0;background:transparent;color:#70817c;font-size:9px;display:flex;align-items:center;gap:4px;padding:6px}
+.signature-pad canvas{display:block;width:100%;height:126px;cursor:crosshair;touch-action:none;background:linear-gradient(#fff 88%,#dce5e2 89%,#fff 90%)}
+.signature-pad>p{margin:0;padding:7px 10px;border-top:1px solid #eef1f0;color:#929c99;font-size:8px;text-align:center}
+.signature-error{margin:10px 0 0}
+.consent-summary{margin-top:16px}
+.consent-summary .panel-heading{border-bottom:1px solid #edf0ee}
+.consent-status{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:18px;font-size:9px;font-weight:700}
+.consent-status.complete{background:#e4f0e9;color:#2c6a56}.consent-status.pending{background:#f7efd9;color:#95691d}
+.consent-summary-body{padding:18px 22px 22px}
+.consent-copy{margin:0;color:#556762;font-size:10px;line-height:1.65}
+.consent-signer{margin:10px 0 0;color:#687772;font-size:9px}
+.signature-cards,.evolution-signatures{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.signature-card{min-width:0;border:1px solid #dfe6e3;border-radius:9px;background:#fafcfb;padding:9px}
+.signature-card img{display:block;width:100%;height:62px;object-fit:contain;border-bottom:1px solid #e5ebe8;margin-bottom:7px}
+.signature-card span{display:flex;flex-direction:column;gap:2px}.signature-card strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;color:#354b46}.signature-card small{font-size:7px;color:#84908d}
+.signature-card.pending{min-height:100px;display:flex;align-items:center;justify-content:center;gap:8px;color:#9aa5a1;border-style:dashed}
+.signature-card.pending span{min-width:0}.signature-card.pending svg{flex:none}
+.professor-sign-button{margin-top:13px}
+.evolution-signature-block{margin-top:16px}
+.evolution-signatures{grid-template-columns:1fr 1fr;padding-top:12px;border-top:1px solid #edf0ee}
+.evolution-signatures .signature-card img{height:48px}
+.evolution-signatures .signature-card.pending{min-height:82px}
+.evolution-sign-button{margin-top:9px;padding:5px 0}
+@media(max-width:760px){.signature-grid,.signature-cards,.evolution-signatures{grid-template-columns:1fr}.consent-box{padding:14px}.consent-summary .panel-heading{align-items:flex-start;gap:10px}.consent-status{white-space:nowrap}.signature-pad canvas{height:145px}}

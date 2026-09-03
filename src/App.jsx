@@ -1,15 +1,84 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Archive, ArrowLeft, Bell, BookOpen, CalendarDays, Camera,
   ChevronDown, ChevronRight, ClipboardList, Clock3, FileText, FlaskConical,
   FolderOpen, GraduationCap, HeartPulse, Home, LogOut, Menu, MoreHorizontal,
   Paperclip, Plus, Search, Settings, ShieldCheck, Stethoscope, Upload, UserPlus,
   Users, X, Eye, EyeOff, LockKeyhole, Mail, Download, CheckCircle2, Pencil, Trash2,
+  PenLine, Eraser,
 } from 'lucide-react';
 import { patients as seedPatients, statusTone } from './data';
 import { supabase, supabaseConfigured } from './supabase';
 
 const CURRENT_SEMESTER = '2026.2';
+const CONSENT_TEXT = 'Declaro que fui informado(a) sobre o atendimento realizado na Clínica de Estomatologia da UFPB e autorizo o registro das informações clínicas, fotografias, exames e evoluções necessárias ao acompanhamento do caso, respeitados o sigilo, a finalidade assistencial e as normas institucionais.';
+
+const signedAtLabel = value => value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+function SignaturePad({ label, helper, onChange }) {
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const lastPoint = useRef(null);
+  const hasInk = useRef(false);
+  const pointFromEvent = event => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    return { x: (event.clientX - rect.left) * (canvas.width / rect.width), y: (event.clientY - rect.top) * (canvas.height / rect.height) };
+  };
+  const startDrawing = event => {
+    event.preventDefault();
+    drawing.current = true;
+    lastPoint.current = pointFromEvent(event);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const draw = event => {
+    if (!drawing.current) return;
+    event.preventDefault();
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    const point = pointFromEvent(event);
+    context.strokeStyle = '#173f3a';
+    context.lineWidth = 2.4;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.beginPath();
+    context.moveTo(lastPoint.current.x, lastPoint.current.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    lastPoint.current = point;
+    hasInk.current = true;
+  };
+  const stopDrawing = () => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    lastPoint.current = null;
+    if (hasInk.current) onChange(canvasRef.current.toDataURL('image/png'));
+  };
+  const clear = () => {
+    const canvas = canvasRef.current;
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    hasInk.current = false;
+    onChange('');
+  };
+  return <div className="signature-pad"><div className="signature-pad-head"><span><PenLine size={16}/><strong>{label}</strong><small>{helper}</small></span><button type="button" onClick={clear}><Eraser size={14}/>Limpar</button></div><canvas ref={canvasRef} width="800" height="180" onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerCancel={stopDrawing} onPointerLeave={stopDrawing} aria-label={label}/><p>Assine no espaço acima usando o dedo, mouse ou caneta digital.</p></div>;
+}
+
+function SignatureCard({ signature, fallback }) {
+  if (!signature?.dataUrl) return <div className="signature-card pending"><PenLine size={20}/><span><strong>{fallback}</strong><small>Assinatura pendente</small></span></div>;
+  return <div className="signature-card"><img src={signature.dataUrl} alt={`Assinatura de ${signature.name}`}/><span><strong>{signature.name}</strong><small>{signature.role} · {signedAtLabel(signature.signedAt)}</small></span></div>;
+}
+
+function SignModal({ title, subtitle, user, role = 'Professor supervisor', onSave, close }) {
+  const [dataUrl, setDataUrl] = useState('');
+  const [error, setError] = useState('');
+  const submit = event => {
+    event.preventDefault();
+    if (!dataUrl) return setError('Faça a assinatura antes de confirmar.');
+    onSave({ dataUrl, name: user.name, role, signedAt: new Date().toISOString() });
+    close();
+  };
+  return <div className="modal-layer" onMouseDown={event=>event.target===event.currentTarget&&close()}><div className="modal compact-modal"><div className="modal-head"><div><p className="eyebrow">ASSINATURA ELETRÔNICA</p><h2>{title}</h2><span>{subtitle}</span></div><button className="icon-button" onClick={close}><X size={20}/></button></div><form onSubmit={submit}><SignaturePad label={`Assinatura de ${user.name}`} helper={role} onChange={setDataUrl}/>{error&&<div className="page-error signature-error">{error}</div>}<div className="modal-actions"><button type="button" className="ghost" onClick={close}>Cancelar</button><button type="submit" className="primary"><PenLine size={16}/>Confirmar assinatura</button></div></form></div></div>;
+}
 
 const navItems = [
   { label: 'Visão geral', icon: Home },
@@ -189,7 +258,7 @@ function PatientPage({ patient, goBack, user, onUpdate, onDelete }) {
   const saveEvolution = evolution => { updateCase({ timeline: [evolution, ...(caseData.timeline || [])], lastVisit: evolution.displayDate }); setTab('Evoluções'); };
   return <main className="patient-page">
     <div className="patient-hero"><button className="back-link" onClick={goBack}><ArrowLeft size={17}/> Voltar para meus casos</button><div className="patient-heading"><Avatar patient={caseData}/><div><p className="eyebrow">FICHA {caseData.ficha} · SEMESTRE {caseData.semester}</p><h1>{caseData.name}</h1><p>{caseData.age} anos · {caseData.sex} · Responsável: {caseData.ownerName}</p></div><Badge status={caseData.status}/>{user.role==='admin'&&<div className="admin-patient-actions"><button className="secondary" onClick={()=>setShowEdit(true)}><Pencil size={16}/>Editar cadastro</button><button className="danger-button" onClick={()=>{if(window.confirm(`Remover o cadastro de ${caseData.name}? Esta ação não pode ser desfeita.`))onDelete(caseData.id)}}><Trash2 size={16}/>Remover</button></div>}<button className="primary" onClick={()=>setShowEvolution(true)}><Plus size={18}/>Nova evolução</button></div><div className="tabs">{['Resumo','Evoluções'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</div></div>
-    <div className="patient-content">{tab === 'Resumo' ? <SummaryView patient={caseData} onUpdate={updateCase}/> : <EvolutionsView patient={caseData} onAdd={()=>setShowEvolution(true)}/>}</div>
+    <div className="patient-content">{tab === 'Resumo' ? <SummaryView patient={caseData} user={user} onUpdate={updateCase}/> : <EvolutionsView patient={caseData} user={user} onUpdate={updateCase} onAdd={()=>setShowEvolution(true)}/>}</div>
     {showEvolution && <EvolutionModal patient={caseData} user={user} onSave={saveEvolution} close={()=>setShowEvolution(false)}/>} {showEdit&&<PatientEditModal patient={caseData} onSave={changes=>{updateCase(changes);setShowEdit(false)}} close={()=>setShowEdit(false)}/>} 
   </main>;
 }
@@ -199,17 +268,22 @@ function PatientEditModal({ patient, onSave, close }) {
   return <div className="modal-layer" onMouseDown={event=>event.target===event.currentTarget&&close()}><div className="modal compact-modal"><div className="modal-head"><div><p className="eyebrow">ADMINISTRAÇÃO</p><h2>Editar paciente</h2><span>Atualize os dados de identificação e o status do caso.</span></div><button className="icon-button" onClick={close}><X size={20}/></button></div><form onSubmit={submit}><label>Nome completo<input name="name" required defaultValue={patient.name}/></label><div className="form-row"><label>Número da ficha<input name="record" required defaultValue={patient.ficha}/></label><label>Idade<input name="age" required type="number" min="0" defaultValue={patient.age}/></label></div><div className="form-row"><label>Sexo<select name="sex" defaultValue={patient.sex}><option>Feminino</option><option>Masculino</option><option>Outro</option><option>Prefere não informar</option></select></label><label>Status<select name="status" defaultValue={patient.status}><option>Em avaliação</option><option>Aguardando exame</option><option>Aguardando biópsia</option><option>Em acompanhamento</option><option>Concluído</option><option>Alta</option></select></label></div><div className="modal-actions"><button type="button" className="ghost" onClick={close}>Cancelar</button><button className="primary" type="submit"><ShieldCheck size={16}/>Salvar alterações</button></div></form></div></div>;
 }
 
-function SummaryView({ patient, onUpdate }) {
+function SummaryView({ patient, user, onUpdate }) {
   const [editingDiagnosis, setEditingDiagnosis] = useState(false);
+  const [signingRegistration, setSigningRegistration] = useState(false);
   const saveDiagnosis = event => { event.preventDefault(); const form = new FormData(event.currentTarget); onUpdate({ finalDiagnosis: form.get('diagnosis'), diagnosisConfirmation: form.get('confirmation'), diagnosisDate: '02 set 2026' }); setEditingDiagnosis(false); };
   return <><div className="summary-grid"><section className="panel info-panel"><div className="panel-heading"><div><h2>Resumo clínico</h2><p>Informações do preenchimento inicial</p></div></div><dl><div><dt>Queixa principal</dt><dd>{patient.complaint || 'Não informada.'}</dd></div><div><dt>História da doença atual</dt><dd>{patient.history || 'Não informada.'}</dd></div><div><dt>História médica</dt><dd>{patient.medicalHistory || 'Não informada.'}</dd></div><div><dt>História de hábitos e dependências</dt><dd>{patient.habitsHistory || 'Não informada.'}</dd></div><div><dt>História odontológica</dt><dd>{patient.dentalHistory || 'Não informada.'}</dd></div><div><dt>Exame extraoral</dt><dd>{patient.extraoralExam || 'Não informado.'}</dd></div><div><dt>Exame intraoral</dt><dd>{patient.intraoralExam || 'Não informado.'}</dd></div><div><dt>Hipóteses diagnósticas</dt><dd>{patient.hypotheses?.length ? <span className="hypothesis-list">{patient.hypotheses.map((item,index)=><span key={item}><i>{index+1}</i>{item}</span>)}</span> : <span className="muted-record">Nenhuma hipótese registrada.</span>}</dd></div></dl></section><aside className="panel case-details"><h2>Dados do caso</h2><dl><div><dt>Período acadêmico</dt><dd>{patient.semester}</dd></div><div><dt>Primeiro atendimento</dt><dd>{patient.firstVisit}</dd></div><div><dt>Aluno responsável</dt><dd>{patient.ownerName}<small>Matrícula {patient.ownerRegistration}</small></dd></div><div><dt>Professor supervisor</dt><dd>Não informado</dd></div><div><dt>Última atualização</dt><dd>{patient.lastVisit}</dd></div></dl><div className="audit"><ShieldCheck size={17}/>Histórico de alterações disponível</div></aside></div>
+    <section className="panel consent-summary"><div className="panel-heading"><div><h2>Consentimento e assinaturas</h2><p>Registro de ciência e responsabilidade pelo atendimento inicial</p></div><span className={`consent-status ${patient.consent?.accepted?'complete':'pending'}`}>{patient.consent?.accepted?<CheckCircle2 size={15}/>:<Clock3 size={15}/>} {patient.consent?.accepted?'Consentimento registrado':'Pendente'}</span></div><div className="consent-summary-body"><p className="consent-copy">{patient.consent?.text || 'Consentimento ainda não registrado para este cadastro.'}</p>{patient.consent?.signerName&&<p className="consent-signer"><strong>Paciente ou responsável:</strong> {patient.consent.signerName} · {signedAtLabel(patient.consent.signedAt)}</p>}<div className="signature-cards"><SignatureCard signature={patient.signatures?.registration?.patient} fallback="Paciente ou responsável"/><SignatureCard signature={patient.signatures?.registration?.student} fallback="Aluno responsável"/><SignatureCard signature={patient.signatures?.registration?.professor} fallback="Professor supervisor"/></div>{user.role==='admin'&&!patient.signatures?.registration?.professor&&<button className="secondary professor-sign-button" onClick={()=>setSigningRegistration(true)}><PenLine size={16}/>Assinar cadastro como professor</button>}</div></section>
     <section className="panel final-diagnosis"><div className="panel-heading"><div><h2>Diagnóstico final</h2><p>Conclusão diagnóstica do caso</p></div>{patient.finalDiagnosis&&!editingDiagnosis&&<button className="text-button" onClick={()=>setEditingDiagnosis(true)}>Editar</button>}</div>{editingDiagnosis ? <form onSubmit={saveDiagnosis}><label>Diagnóstico final<input name="diagnosis" required defaultValue={patient.finalDiagnosis || ''} placeholder="Informe o diagnóstico final"/></label><label>Forma de confirmação<select name="confirmation" defaultValue={patient.diagnosisConfirmation || 'Clínica'}><option>Clínica</option><option>Anatomopatológica</option><option>Laboratorial</option><option>Outra</option></select></label><div><button type="button" className="ghost" onClick={()=>setEditingDiagnosis(false)}>Cancelar</button><button className="primary" type="submit">Salvar diagnóstico</button></div></form> : patient.finalDiagnosis ? <div className="diagnosis-result"><span><CheckCircle2 size={20}/></span><div><strong>{patient.finalDiagnosis}</strong><small>Confirmação {patient.diagnosisConfirmation?.toLowerCase()} · {patient.diagnosisDate}</small></div></div> : <div className="diagnosis-empty"><FlaskConical size={23}/><span><strong>Diagnóstico final ainda não registrado</strong><small>Adicione quando a investigação do caso estiver concluída.</small></span><button className="secondary" onClick={()=>setEditingDiagnosis(true)}><Plus size={16}/>Inserir diagnóstico</button></div>}</section>
     <div className="summary-media"><ClinicalGallery patient={patient}/><PatientFiles patient={patient}/></div>
+    {signingRegistration&&<SignModal title="Assinar cadastro do paciente" subtitle={`${patient.name} · Ficha ${patient.ficha}`} user={user} onSave={signature=>onUpdate({signatures:{...(patient.signatures||{}),registration:{...(patient.signatures?.registration||{}),professor:signature}}})} close={()=>setSigningRegistration(false)}/>}
   </>;
 }
 
-function EvolutionsView({ patient, onAdd }) {
-  return <section className="timeline-section"><div className="section-heading"><div><h2>Evoluções clínicas</h2><p>Histórico longitudinal do paciente</p></div><button className="secondary" onClick={onAdd}><Plus size={17}/>Adicionar evolução</button></div><div className="timeline">{(patient.timeline || []).map(item=><article key={item.id}><div className="timeline-date"><strong>{item.date}</strong><span>{item.year}</span></div><i className="followup"/><div className="timeline-card"><div><strong>{item.title}</strong><span>por {item.author} · {item.time}</span></div><p>{item.text}</p>{item.procedures&&<div className="conduct"><span>PROCEDIMENTOS</span>{item.procedures}</div>}{item.action&&<div className="conduct"><span>CONDUTA</span>{item.action}</div>}{item.photos?.length>0&&<div className="evolution-photos">{item.photos.map((photo,index)=><img key={index} src={photo.url} alt={photo.name}/>)}</div>}{item.files?.length>0&&<div className="evolution-files">{item.files.map((file,index)=><span key={index}><Paperclip size={14}/>{file.name}</span>)}</div>}</div></article>)}{!(patient.timeline || []).length&&<div className="timeline-empty"><Clock3 size={24}/><strong>Nenhuma evolução registrada</strong><span>Adicione o primeiro retorno clínico, com fotos e arquivos quando necessário.</span></div>}</div></section>;
+function EvolutionsView({ patient, user, onUpdate, onAdd }) {
+  const [signingEvolution, setSigningEvolution] = useState(null);
+  const saveProfessorSignature = signature => onUpdate({ timeline: (patient.timeline || []).map(item=>item.id===signingEvolution?{...item,professorSignature:signature}:item) });
+  return <section className="timeline-section"><div className="section-heading"><div><h2>Evoluções clínicas</h2><p>Histórico longitudinal do paciente</p></div><button className="secondary" onClick={onAdd}><Plus size={17}/>Adicionar evolução</button></div><div className="timeline">{(patient.timeline || []).map(item=><article key={item.id}><div className="timeline-date"><strong>{item.date}</strong><span>{item.year}</span></div><i className="followup"/><div className="timeline-card"><div><strong>{item.title}</strong><span>por {item.author} · {item.time}</span></div><p>{item.text}</p>{item.procedures&&<div className="conduct"><span>PROCEDIMENTOS</span>{item.procedures}</div>}{item.action&&<div className="conduct"><span>CONDUTA</span>{item.action}</div>}{item.photos?.length>0&&<div className="evolution-photos">{item.photos.map((photo,index)=><img key={index} src={photo.url} alt={photo.name}/>)}</div>}{item.files?.length>0&&<div className="evolution-files">{item.files.map((file,index)=><span key={index}><Paperclip size={14}/>{file.name}</span>)}</div>}<div className="evolution-signatures"><SignatureCard signature={item.authorSignature} fallback="Responsável pela evolução"/><SignatureCard signature={item.professorSignature} fallback="Professor supervisor"/></div>{user.role==='admin'&&!item.professorSignature&&<button className="text-button evolution-sign-button" onClick={()=>setSigningEvolution(item.id)}><PenLine size={15}/>Assinar evolução como professor</button>}</div></article>)}{!(patient.timeline || []).length&&<div className="timeline-empty"><Clock3 size={24}/><strong>Nenhuma evolução registrada</strong><span>Adicione o primeiro retorno clínico, com fotos e arquivos quando necessário.</span></div>}</div>{signingEvolution&&<SignModal title="Assinar evolução clínica" subtitle={`${patient.name} · ${patient.timeline.find(item=>item.id===signingEvolution)?.title || ''}`} user={user} onSave={saveProfessorSignature} close={()=>setSigningEvolution(null)}/>}</section>;
 }
 
 function ClinicalGallery({ patient }) {
@@ -236,10 +310,11 @@ function TabContent({ tab }) {
 function EvolutionModal({ patient, user, onSave, close }) {
   const [saved, setSaved] = useState(false);
   const [photos, setPhotos] = useState([]); const [files, setFiles] = useState([]);
+  const [signature, setSignature] = useState(''); const [signatureError, setSignatureError] = useState('');
   const addPhotos = event => setPhotos(current=>[...current,...Array.from(event.target.files).map(file=>({name:file.name,url:URL.createObjectURL(file)}))]);
   const addFiles = event => setFiles(current=>[...current,...Array.from(event.target.files).map(file=>({name:file.name,size:file.size}))]);
-  const submit = event => { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ id: Date.now(), title: `Evolução ${(patient.timeline || []).length + 1}`, date: '02 SET', displayDate: '02 set 2026', year: '2026', time: new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}), author: user.name, text: form.get('description'), procedures: form.get('procedures'), action: form.get('conduct'), photos, files }); setSaved(true); };
-  return <div className="modal-layer" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="modal"><div className="modal-head"><div><p className="eyebrow">FICHA {patient.ficha}</p><h2>Nova evolução clínica</h2><span>{patient.name}</span></div><button className="icon-button" onClick={close}><X size={20}/></button></div>{saved ? <div className="success-state"><span><ShieldCheck size={30}/></span><h2>Evolução registrada</h2><p>Registro, fotos e arquivos foram incluídos em nome de {user.name}.</p><button className="primary" onClick={close}>Concluir</button></div> : <form onSubmit={submit}><div className="form-row"><label>Data do atendimento<input type="date" defaultValue="2026-09-02"/></label><label>Responsável<input value={user.name} disabled/></label></div><label>Descrição da evolução<textarea name="description" required placeholder="Descreva o estado atual, sintomas e alterações observadas..."/></label><div className="form-row"><label>Procedimentos realizados<textarea name="procedures" placeholder="Procedimentos realizados neste atendimento..."/></label><label>Conduta e planejamento<textarea name="conduct" placeholder="Conduta, orientações e próximos passos..."/></label></div><div className="evolution-upload-grid"><label className="upload-zone"><Camera size={21}/><strong>Adicionar fotos</strong><span>JPG, PNG ou HEIC</span><input type="file" accept="image/*,.heic" multiple onChange={addPhotos}/></label><label className="upload-zone"><Paperclip size={21}/><strong>Adicionar arquivos</strong><span>PDF, JPG ou PNG</span><input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={addFiles}/></label></div>{(photos.length>0||files.length>0)&&<div className="modal-file-summary">{photos.map((photo,index)=><span key={`p-${index}`}><Camera size={13}/>{photo.name}</span>)}{files.map((file,index)=><span key={`f-${index}`}><Paperclip size={13}/>{file.name}</span>)}</div>}<div className="modal-actions"><button type="button" className="ghost" onClick={close}>Cancelar</button><button type="submit" className="primary"><ShieldCheck size={17}/>Salvar evolução</button></div></form>}</div></div>;
+  const submit = event => { event.preventDefault(); if(!signature){setSignatureError('Assine a evolução antes de salvá-la.');return;} const form = new FormData(event.currentTarget); const now = new Date(); onSave({ id: Date.now(), title: `Evolução ${(patient.timeline || []).length + 1}`, date: '02 SET', displayDate: '02 set 2026', year: '2026', time: now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}), author: user.name, text: form.get('description'), procedures: form.get('procedures'), action: form.get('conduct'), photos, files, authorSignature:{dataUrl:signature,name:user.name,role:user.role==='admin'?'Professor':'Aluno responsável',signedAt:now.toISOString()}, professorSignature:user.role==='admin'?{dataUrl:signature,name:user.name,role:'Professor supervisor',signedAt:now.toISOString()}:null }); setSaved(true); };
+  return <div className="modal-layer" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="modal"><div className="modal-head"><div><p className="eyebrow">FICHA {patient.ficha}</p><h2>Nova evolução clínica</h2><span>{patient.name}</span></div><button className="icon-button" onClick={close}><X size={20}/></button></div>{saved ? <div className="success-state"><span><ShieldCheck size={30}/></span><h2>Evolução registrada e assinada</h2><p>Registro, assinatura, fotos e arquivos foram incluídos em nome de {user.name}.</p><button className="primary" onClick={close}>Concluir</button></div> : <form onSubmit={submit}><div className="form-row"><label>Data do atendimento<input type="date" defaultValue="2026-09-02"/></label><label>Responsável<input value={user.name} disabled/></label></div><label>Descrição da evolução<textarea name="description" required placeholder="Descreva o estado atual, sintomas e alterações observadas..."/></label><div className="form-row"><label>Procedimentos realizados<textarea name="procedures" placeholder="Procedimentos realizados neste atendimento..."/></label><label>Conduta e planejamento<textarea name="conduct" placeholder="Conduta, orientações e próximos passos..."/></label></div><div className="evolution-upload-grid"><label className="upload-zone"><Camera size={21}/><strong>Adicionar fotos</strong><span>JPG, PNG ou HEIC</span><input type="file" accept="image/*,.heic" multiple onChange={addPhotos}/></label><label className="upload-zone"><Paperclip size={21}/><strong>Adicionar arquivos</strong><span>PDF, JPG ou PNG</span><input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={addFiles}/></label></div>{(photos.length>0||files.length>0)&&<div className="modal-file-summary">{photos.map((photo,index)=><span key={`p-${index}`}><Camera size={13}/>{photo.name}</span>)}{files.map((file,index)=><span key={`f-${index}`}><Paperclip size={13}/>{file.name}</span>)}</div>}<div className="evolution-signature-block"><SignaturePad label={`Assinatura de ${user.name}`} helper={user.role==='admin'?'Professor responsável':'Aluno responsável pela evolução'} onChange={value=>{setSignature(value);setSignatureError('')}}/>{signatureError&&<div className="page-error signature-error">{signatureError}</div>}</div><div className="modal-actions"><button type="button" className="ghost" onClick={close}>Cancelar</button><button type="submit" className="primary"><ShieldCheck size={17}/>Salvar evolução assinada</button></div></form>}</div></div>;
 }
 
 function NewPatient({ onCreate, user, semester }) {
@@ -248,11 +323,14 @@ function NewPatient({ onCreate, user, semester }) {
   const [files, setFiles] = useState([]);
   const [hypotheses, setHypotheses] = useState(['', '', '']);
   const [createdPatient, setCreatedPatient] = useState(null);
+  const [patientSignature, setPatientSignature] = useState('');
+  const [studentSignature, setStudentSignature] = useState('');
+  const [signatureError, setSignatureError] = useState('');
   const addPhotos = event => setPhotos([...photos, ...Array.from(event.target.files).map(file => ({ name: file.name, url: URL.createObjectURL(file), date: 'Hoje', type: 'Atendimento inicial' }))]);
   const addFiles = event => setFiles([...files, ...Array.from(event.target.files).map(file => ({ name: file.name, type: file.name.split('.').pop().toUpperCase(), size: `${Math.max(1, Math.round(file.size/1024))} KB`, date: 'Hoje' }))]);
   const submit = event => {
-    event.preventDefault(); const form = new FormData(event.currentTarget); const birth = new Date(form.get('birth')); const age = Math.max(0, 2026 - birth.getFullYear()); const name = form.get('name');
-    const newPatient = { id: Date.now(), semester, ficha: form.get('record'), name, initials: name.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase(), age, sex: form.get('sex'), ownerId: user.id, ownerName: user.name, ownerRegistration: user.registration, firstVisit: '02 set 2026', lastVisit: '02 set 2026', status: 'Em avaliação', accent: '#dcebe7', complaint: form.get('complaint'), history: form.get('history'), medicalHistory: form.get('medical'), habitsHistory: form.get('habits'), dentalHistory: form.get('dentalHistory'), extraoralExam: form.get('extraoralExam'), intraoralExam: form.get('intraoralExam'), hypotheses: hypotheses.filter(item=>item.trim()), photos, files, timeline: [], finalDiagnosis: '' };
+    event.preventDefault(); const form = new FormData(event.currentTarget); if(!patientSignature||!studentSignature){setSignatureError('As assinaturas do paciente ou responsável e do aluno são obrigatórias.');return;} const birth = new Date(form.get('birth')); const age = Math.max(0, 2026 - birth.getFullYear()); const name = form.get('name'); const now = new Date();
+    const newPatient = { id: Date.now(), semester, ficha: form.get('record'), name, initials: name.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase(), age, sex: form.get('sex'), ownerId: user.id, ownerName: user.name, ownerRegistration: user.registration, firstVisit: '02 set 2026', lastVisit: '02 set 2026', status: 'Em avaliação', accent: '#dcebe7', complaint: form.get('complaint'), history: form.get('history'), medicalHistory: form.get('medical'), habitsHistory: form.get('habits'), dentalHistory: form.get('dentalHistory'), extraoralExam: form.get('extraoralExam'), intraoralExam: form.get('intraoralExam'), hypotheses: hypotheses.filter(item=>item.trim()), photos, files, timeline: [], finalDiagnosis: '', consent:{accepted:true,text:CONSENT_TEXT,signerName:form.get('consentSigner'),signedAt:now.toISOString()},signatures:{registration:{patient:{dataUrl:patientSignature,name:form.get('consentSigner'),role:'Paciente ou responsável',signedAt:now.toISOString()},student:{dataUrl:studentSignature,name:user.name,role:'Aluno responsável',signedAt:now.toISOString()},professor:null}} };
     setCreatedPatient(newPatient); setSaved(true);
   };
   return <main className="page narrow-page"><div className="page-title"><div><p className="eyebrow">NOVO GUIA CLÍNICO · {semester}</p><h1>Cadastrar paciente</h1><p>Preencha os dados clínicos e adicione imagens e documentos.</p></div></div>{saved ? <div className="panel success-page"><span><ShieldCheck size={32}/></span><h2>Paciente cadastrado com sucesso</h2><p>O Guia Clínico foi registrado individualmente na conta de {user.name}.</p><button className="primary" onClick={()=>onCreate(createdPatient)}>Abrir Guia Clínico</button></div> : <form className="panel patient-form" onSubmit={submit}>
@@ -262,6 +340,7 @@ function NewPatient({ onCreate, user, semester }) {
     <div className="form-section"><span>04</span><div><h2>Hipóteses diagnósticas</h2><p>Possibilidades consideradas no atendimento inicial</p></div></div><div className="hypothesis-fields">{hypotheses.map((value,index)=><label key={index}>Hipótese {index+1}<div><input required={index===0} value={value} onChange={event=>setHypotheses(hypotheses.map((item,i)=>i===index?event.target.value:item))} placeholder="Informe uma hipótese diagnóstica"/>{hypotheses.length>3&&<button type="button" onClick={()=>setHypotheses(hypotheses.filter((_,i)=>i!==index))}><X size={15}/></button>}</div></label>)}</div><button className="add-hypothesis" type="button" onClick={()=>setHypotheses([...hypotheses,''])}><Plus size={15}/>Adicionar outra hipótese</button><hr/>
     <div className="form-section"><span>05</span><div><h2>Fotos e arquivos</h2><p>Documentação do atendimento inicial</p></div></div><div className="patient-upload-grid"><label className="upload-zone"><Camera size={23}/><strong>Adicionar fotografias clínicas</strong><span>JPG, PNG ou HEIC · múltiplos arquivos</span><input type="file" accept="image/jpeg,image/png,image/heic" multiple onChange={addPhotos}/></label><label className="upload-zone"><Paperclip size={23}/><strong>Adicionar exames e documentos</strong><span>PDF, JPG ou PNG · múltiplos arquivos</span><input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={addFiles}/></label></div>
     {(photos.length > 0 || files.length > 0) && <div className="upload-preview">{photos.map((photo,index)=><div key={index} className="preview-image"><img src={photo.url} alt=""/><span>{photo.name}</span><button type="button" onClick={()=>setPhotos(photos.filter((_,i)=>i!==index))}><X size={14}/></button></div>)}{files.map((file,index)=><div key={index} className="preview-file"><FileText size={19}/><span>{file.name}</span><button type="button" onClick={()=>setFiles(files.filter((_,i)=>i!==index))}><X size={14}/></button></div>)}</div>}
+    <hr/><div className="form-section"><span>06</span><div><h2>Consentimento e assinaturas</h2><p>Ciência do paciente e responsabilidade pelo registro clínico</p></div></div><div className="consent-box"><ShieldCheck size={22}/><div><strong>Termo de consentimento para registro e acompanhamento clínico</strong><p>{CONSENT_TEXT}</p><label className="consent-check"><input type="checkbox" name="consentAccepted" required/><span>O paciente ou responsável declara que leu, compreendeu e concorda com o termo acima.</span></label></div></div><label className="consent-name">Nome do paciente ou responsável que assina<input name="consentSigner" required placeholder="Nome completo do signatário"/></label><div className="signature-grid"><SignaturePad label="Assinatura do paciente ou responsável" helper="Consentimento para o atendimento e os registros" onChange={value=>{setPatientSignature(value);setSignatureError('')}}/><SignaturePad label={`Assinatura de ${user.name}`} helper={`Aluno responsável · Matrícula ${user.registration}`} onChange={value=>{setStudentSignature(value);setSignatureError('')}}/></div>{signatureError&&<div className="page-error signature-error">{signatureError}</div>}
     <div className="form-footer"><p><ShieldCheck size={16}/>Responsável individual: {user.name}</p><button className="primary" type="submit">Criar Guia Clínico <ChevronRight size={17}/></button></div></form>}</main>;
 }
 
