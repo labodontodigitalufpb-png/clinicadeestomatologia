@@ -261,3 +261,13 @@
 .evolution-signatures .signature-card.pending{min-height:82px}
 .evolution-sign-button{margin-top:9px;padding:5px 0}
 @media(max-width:760px){.signature-grid,.signature-cards,.evolution-signatures{grid-template-columns:1fr}.consent-box{padding:14px}.consent-summary .panel-heading{align-items:flex-start;gap:10px}.consent-status{white-space:nowrap}.signature-pad canvas{height:145px}}
+
+/* Persistência de prontuários */
+.persistence-banner{position:sticky;top:68px;z-index:19;min-height:42px;padding:9px 38px;display:flex;align-items:center;gap:9px;border-bottom:1px solid;font-size:10px;box-shadow:0 4px 12px rgba(22,55,49,.06)}
+.persistence-banner>span{flex:1}.persistence-banner button{border:0;background:transparent;color:currentColor;display:grid;place-items:center;padding:4px}
+.persistence-banner.loading{background:#edf5f2;border-color:#d1e3dc;color:#3d675f}.persistence-banner.success{background:#e8f4ee;border-color:#c9e2d5;color:#2f6856}.persistence-banner.warning{background:#faf3df;border-color:#eadcb2;color:#836622}.persistence-banner.error{background:#faece9;border-color:#ecd1cb;color:#884b40}
+.persistence-banner.loading>span:first-child{width:15px;height:15px;flex:none;border:2px solid #bdd4cd;border-top-color:#356b61;border-radius:50%;animation:auth-spin .8s linear infinite}
+.file-row .icon-button{text-decoration:none;flex:none}.file-row .icon-button:disabled{cursor:not-allowed;opacity:.4}
+.drive-backup-button{white-space:nowrap}.drive-backup-button:disabled{cursor:wait;opacity:.65}
+@media(max-width:700px){.persistence-banner{top:60px;padding:9px 16px;align-items:flex-start}}
+@media(max-width:760px){.drive-backup-button{order:4;margin-left:64px}.drive-backup-button+ .admin-patient-actions{margin-left:7px}}

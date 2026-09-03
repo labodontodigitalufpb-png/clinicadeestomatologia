@@ -10,6 +10,7 @@ export function googleConfig() {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
     stateSecret: process.env.GOOGLE_STATE_SECRET,
+    rootFolderId: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID,
     redirectUri: configuredRedirectUri?.startsWith('https://') ? configuredRedirectUri : PRODUCTION_REDIRECT_URI,
   };
 }
@@ -55,4 +56,50 @@ export async function exchangeRefreshToken(config) {
 
 export function sendJson(response, status, body) {
   response.status(status).setHeader('Content-Type', 'application/json; charset=utf-8').send(JSON.stringify(body));
+}
+
+const driveQueryValue = value => String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+export async function driveRequest(accessToken, url, options = {}) {
+  const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || 'O Google Drive não concluiu a operação.');
+  return data;
+}
+
+export async function findDriveFile(accessToken, name, parentId, mimeType) {
+  const clauses = [`name = '${driveQueryValue(name)}'`, 'trashed = false'];
+  if (parentId) clauses.push(`'${driveQueryValue(parentId)}' in parents`);
+  if (mimeType) clauses.push(`mimeType = '${driveQueryValue(mimeType)}'`);
+  const params = new URLSearchParams({ q: clauses.join(' and '), spaces: 'drive', pageSize: '10', fields: 'files(id,name,mimeType,webViewLink)' });
+  const data = await driveRequest(accessToken, `https://www.googleapis.com/drive/v3/files?${params}`);
+  return data.files?.[0] || null;
+}
+
+export async function ensureDriveFolder(accessToken, name, parentId) {
+  const existing = await findDriveFile(accessToken, name, parentId, 'application/vnd.google-apps.folder');
+  if (existing) return existing;
+  return driveRequest(accessToken, 'https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', ...(parentId ? { parents: [parentId] } : {}) }),
+  });
+}
+
+export async function uploadDriveFile(accessToken, { name, mimeType, buffer, parentId }) {
+  const existing = await findDriveFile(accessToken, name, parentId);
+  const boundary = `clinical_backup_${crypto.randomBytes(12).toString('hex')}`;
+  const metadata = { name, mimeType, ...(!existing && parentId ? { parents: [parentId] } : {}) };
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),
+    Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer),
+    Buffer.from(`\r\n--${boundary}--`),
+  ]);
+  const filePath = existing ? `/${existing.id}` : '';
+  return driveRequest(accessToken, `https://www.googleapis.com/upload/drive/v3/files${filePath}?uploadType=multipart&fields=id,name,webViewLink`, {
+    method: existing ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  });
 }
