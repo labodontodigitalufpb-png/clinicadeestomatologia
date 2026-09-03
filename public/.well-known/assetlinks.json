@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.ufpb.clinicadeestomatologia",
+      "sha256_cert_fingerprints": [
+        "3D:AA:F5:9D:99:CF:2E:9A:1B:B3:08:84:15:43:50:94:BF:1D:86:F4:C3:CF:A8:93:89:27:87:90:78:72:30:D1"
+      ]
+    }
+  }
+]
