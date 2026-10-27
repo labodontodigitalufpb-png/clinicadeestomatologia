@@ -130,9 +130,10 @@ function AuthPage({ onLogin, onRegister, onResetPassword }) {
       if (role === 'admin') throw new Error('Cadastros de professores são criados somente pela administração.');
       if (password !== form.get('confirmation')) throw new Error('As senhas informadas não são iguais.');
       const message = await onRegister({ name: String(form.get('name')).trim(), registration: String(form.get('registration')).trim(), email, password });
-      setNotice(message || 'Cadastro criado. Confirme o endereço pelo e-mail enviado antes de entrar.');
+      setNotice(message || 'Cadastro criado com sucesso.');
     } catch (submitError) {
-      setError(submitError.message || 'Não foi possível concluir. Tente novamente.');
+      const emailLimit = submitError.code === 'over_email_send_rate_limit' || /email rate limit/i.test(submitError.message || '');
+      setError(emailLimit ? 'O serviço atingiu o limite de envio de e-mails. Aguarde antes de tentar novamente. Se o problema continuar, avise a administração.' : submitError.message || 'Não foi possível concluir. Tente novamente.');
     } finally { setBusy(false); }
   };
   const title = mode === 'login' ? 'Bem-vindo de volta' : mode === 'register' ? 'Criar uma conta' : 'Recuperar senha';
@@ -455,15 +456,22 @@ export default function App() {
   };
   const register = async ({ name, registration, email, password }) => {
     if (!supabase) { const account = { id:`user-${Date.now()}`,role:'student',name,email,password,registration }; setAccounts(current=>[...current,account]); setUser(account); return ''; }
-    const { data, error } = await supabase.auth.signUp({ email, password, options:{ data:{ full_name:name, registration }, emailRedirectTo:window.location.origin } });
-    if (error) throw new Error(error.message);
-    if (data.session && data.user) setUser(await loadCurrentProfile(data.user));
-    return data.session ? 'Cadastro criado com sucesso.' : 'Cadastro criado. Confirme o endereço pelo e-mail enviado antes de entrar.';
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, registration, email, password }),
+    });
+    const result = await response.json().catch(()=>({}));
+    if (!response.ok) throw new Error(result.error || 'Não foi possível criar o cadastro.');
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error('Cadastro criado, mas não foi possível iniciar a sessão. Tente entrar com a senha cadastrada.');
+    setUser(await loadCurrentProfile(data.user));
+    return 'Cadastro criado com sucesso.';
   };
   const resetPassword = async email => {
     if (!supabase) throw new Error('A recuperação estará disponível após configurar o Supabase na Vercel.');
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo:`${window.location.origin}/?recovery=1` });
-    if (error) throw new Error(error.message);
+    if (error) throw error;
   };
   const saveNewPassword = async password => { const { error } = await supabase.auth.updateUser({ password }); if (error) throw new Error(error.message); setRecoveryMode(false); };
   if (!authReady) return <div className="app-loading"><span/><strong>Carregando acesso seguro...</strong></div>;

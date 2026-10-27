@@ -52,7 +52,7 @@ Depois de cada salvamento, a rota autenticada `/api/google/backup` cria ou atual
 
 O frontend usa Supabase Auth quando `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` estão configuradas. Execute `supabase/setup.sql` uma vez no SQL Editor antes de habilitar essas variáveis na Vercel. O script cria perfis protegidos por RLS e força todo autocadastro a entrar como aluno; professores devem ser promovidos administrativamente.
 
-O cadastro administrativo de professores usa a função `/api/admin/users` e exige `SUPABASE_SECRET_KEY` apenas na Vercel. Essa chave nunca deve receber prefixo `VITE_` nem ser adicionada ao repositório.
+Os cadastros de alunos são confirmados automaticamente pela função `/api/auth/register`, permitindo o acesso imediato sem confirmação por e-mail. O cadastro administrativo de professores usa a função `/api/admin/users`. Ambas exigem `SUPABASE_SECRET_KEY` apenas na Vercel. Essa chave nunca deve receber prefixo `VITE_` nem ser adicionada ao repositório.
 
 ## Direção de arquitetura
 
