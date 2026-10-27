@@ -44,9 +44,22 @@ Antes de uso assistencial real, a instituição ainda deve validar o termo de co
 
 ## Integração com Google Drive
 
-O painel administrativo possui uma tela para autorizar uma conta do Google Drive por OAuth 2.0. Configure na Vercel as variáveis documentadas em `.env.example`. O token permanente é obtido pela rota `/api/google/connect` e deve ser armazenado apenas como variável privada `GOOGLE_REFRESH_TOKEN`.
+O painel administrativo autoriza uma conta do Google Drive por OAuth 2.0. Configure na Vercel `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_STATE_SECRET`, `GOOGLE_REDIRECT_URI` e `SUPABASE_SECRET_KEY` conforme `.env.example`. Habilite a Drive API no Google Cloud e cadastre exatamente a mesma URI de retorno no cliente OAuth. Depois do deploy, entre como professor administrador, abra **Google Drive** e clique em **Conectar Google Drive**. Ao concluir o consentimento, o aplicativo salva a autorização e retorna ao painel, sem copiar tokens ou fazer outro deploy.
 
-Depois de cada salvamento, a rota autenticada `/api/google/backup` cria ou atualiza a pasta `Clínica de Estomatologia UFPB/Semestre .../Ficha - Paciente`, grava um instantâneo `guia-clinico.json` e copia documentos e assinaturas. O escopo OAuth permanece limitado aos arquivos criados pelo aplicativo (`drive.file`). Opcionalmente, `GOOGLE_DRIVE_ROOT_FOLDER_ID` direciona as cópias para uma pasta específica do Meu Drive.
+A rota `POST /api/google/connect` exige sessão administrativa. O retorno OAuth confere o `state` assinado, sua validade de dez minutos e um cookie `HttpOnly`, `Secure`, `SameSite=Lax` do navegador que iniciou a conexão. O perfil administrativo é consultado novamente antes de persistir a autorização. Use o mesmo domínio HTTPS no aplicativo e na URI de retorno; o cookie seguro não é destinado ao servidor HTTP local do Vite.
+
+O refresh token é criptografado com AES-256-GCM e armazenado em `clinical-files/integrations/google-drive.enc` pelo backend. As políticas de `supabase/setup.sql` impedem acesso de usuários autenticados a esse prefixo, pois ele não corresponde a um UUID de prontuário. O bucket deve permanecer privado. Mantenha `GOOGLE_STATE_SECRET` longo, aleatório e estável: sua troca exige reconectar a conta. O token nunca é devolvido ao navegador. `GOOGLE_REFRESH_TOKEN` continua aceito para instalações antigas quando ainda não há autorização armazenada; após reconectar pelo painel, a autorização armazenada passa a ter prioridade.
+
+Depois de cada salvamento, a rota autenticada `/api/google/backup` cria ou atualiza a pasta `Clínica de Estomatologia UFPB/Semestre .../Ficha ... - Paciente`. A pasta recebe o ID imutável do prontuário nos metadados do Drive e é renomeada ou movida quando o cadastro muda. Cópias antigas são reaproveitadas quando o JSON indicado por `drive_file_id` confirma o mesmo ID de prontuário. Anexos recebem nomes estáveis derivados de seu caminho e são enviados antes de publicar `guia-clinico.json`. O JSON inclui o mapeamento entre os caminhos do Supabase e os arquivos do Drive. O status de sucesso só é registrado após concluir todos os envios. Uma falha preserva o salvamento principal e permite tentar novamente pelo botão **Copiar no Drive**. Não há fila de repetição automática nem remoção automática de cópias antigas.
+
+O escopo OAuth permanece limitado a `drive.file`. Sem `GOOGLE_DRIVE_ROOT_FOLDER_ID`, o aplicativo cria a própria pasta raiz. Se usar essa variável, a pasta precisa estar previamente acessível ao aplicativo e permitir criação de arquivos; informar o ID de uma pasta arbitrária do Meu Drive não concede acesso. O painel verifica a pasta e explica a falha. Para usar uma pasta criada automaticamente pelo aplicativo, remova essa variável e faça novo deploy.
+
+Validação local, com Google e Supabase simulados:
+
+```bash
+node --test tests/google-drive.test.js
+npm run build
+```
 
 ## Autenticação persistente
 

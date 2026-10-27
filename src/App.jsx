@@ -389,6 +389,20 @@ function UsersManagement({ accounts }) {
 
 function GoogleDriveSettings() {
   const [connection, setConnection] = useState({ status: 'loading' });
+  const [connecting, setConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState('');
+  const connectDrive = async () => {
+    setConnecting(true);
+    setConnectionError('');
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error('Sua sessão expirou. Entre novamente.');
+      const response = await fetch('/api/google/connect', { method: 'POST', headers: { Authorization: `Bearer ${data.session.access_token}` } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Não foi possível iniciar a conexão.');
+      window.location.assign(result.url);
+    } catch (error) { setConnectionError(error.message); setConnecting(false); }
+  };
   useEffect(() => {
     if(!supabase){setConnection({status:'unavailable'});return;}
     supabase.auth.getSession().then(({data})=>fetch('/api/google/status',{headers:{Authorization:`Bearer ${data.session?.access_token||''}`}})).then(response=>response.json()).then(setConnection).catch(()=>setConnection({ status: 'unavailable' }));
@@ -397,12 +411,13 @@ function GoogleDriveSettings() {
     loading: { title: 'Verificando conexão', text: 'Aguarde enquanto consultamos a configuração da Vercel.' },
     configuration_required: { title: 'Configuração necessária', text: 'Cadastre as credenciais OAuth nas variáveis privadas da Vercel e faça um novo deploy.' },
     authorization_required: { title: 'Autorizar sua conta Google', text: 'Conecte a conta proprietária do Meu Drive para permitir a criação das pastas do aplicativo.' },
+    folder_unavailable: { title: 'Pasta de destino indisponível', text: connection.error || 'Verifique a pasta configurada para as cópias.' },
     invalid_token: { title: 'Autorização expirada', text: 'O token armazenado não é mais válido. Autorize novamente a conta Google.' },
-    unavailable: { title: 'Serviço indisponível', text: 'Não foi possível consultar a integração neste momento.' },
+    unavailable: { title: 'Serviço indisponível', text: connection.error || 'Não foi possível consultar a integração neste momento.' },
     connected: { title: 'Google Drive conectado', text: `Conta autorizada: ${connection.account?.emailAddress || connection.account?.displayName || 'Google Drive'}` },
   }[connection.status] || { title: 'Configuração do Google Drive', text: 'Verifique a integração.' };
-  const canConnect = ['authorization_required','invalid_token'].includes(connection.status);
-  return <main className="page narrow-page"><div className="page-title"><div><p className="eyebrow">INTEGRAÇÕES</p><h1>Google Drive</h1><p>Gerencie a conta usada para manter cópias dos prontuários, fotografias, exames e assinaturas.</p></div></div><section className={`panel drive-connection ${connection.status}`}><span className="drive-mark"><FolderOpen size={28}/></span><div><p className="eyebrow">CÓPIA DE SEGURANÇA</p><h2>{content.title}</h2><p>{content.text}</p>{connection.status==='configuration_required'&&<small>Variáveis necessárias: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_STATE_SECRET e GOOGLE_REDIRECT_URI.</small>}{connection.status==='connected'&&<small>Cópia automática após cada salvamento · escopo limitado aos arquivos criados pelo aplicativo.</small>}</div>{canConnect&&<a className="primary" href="/api/google/connect">Conectar Google Drive</a>}</section><div className="drive-warning"><ShieldCheck size={18}/><span><strong>Armazenamento principal protegido</strong><small>O Supabase mantém o prontuário ativo e o Google Drive recebe uma cópia organizada por semestre e paciente.</small></span></div></main>;
+  const canConnect = ['authorization_required','invalid_token','connected'].includes(connection.status);
+  return <main className="page narrow-page"><div className="page-title"><div><p className="eyebrow">INTEGRAÇÕES</p><h1>Google Drive</h1><p>Gerencie a conta usada para manter cópias dos prontuários, fotografias, exames e assinaturas.</p></div></div><section className={`panel drive-connection ${connection.status}`}><span className="drive-mark"><FolderOpen size={28}/></span><div><p className="eyebrow">CÓPIA DE SEGURANÇA</p><h2>{content.title}</h2><p>{content.text}</p>{connection.status==='configuration_required'&&<small>Variáveis necessárias: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_STATE_SECRET, GOOGLE_REDIRECT_URI e SUPABASE_SECRET_KEY.</small>}{connection.status==='connected'&&<small>Cópia automática após cada salvamento · escopo limitado aos arquivos criados pelo aplicativo.</small>}{connectionError&&<p role="alert">{connectionError}</p>}</div>{canConnect&&<button className="primary" disabled={connecting} onClick={connectDrive}>{connecting?'Conectando...':connection.status==='connected'?'Reconectar Google Drive':'Conectar Google Drive'}</button>}</section><div className="drive-warning"><ShieldCheck size={18}/><span><strong>Armazenamento principal protegido</strong><small>O Supabase mantém o prontuário ativo e o Google Drive recebe uma cópia organizada por semestre e paciente.</small></span></div></main>;
 }
 
 function PlaceholderPage({ title }) {
@@ -410,7 +425,7 @@ function PlaceholderPage({ title }) {
 }
 
 export default function App() {
-  const [accounts, setAccounts] = useState(demoAccounts); const [user, setUser] = useState(null); const [authReady, setAuthReady] = useState(!supabaseConfigured); const [recoveryMode, setRecoveryMode] = useState(false); const [active, setActive] = useState('Visão geral'); const [selected, setSelected] = useState(null); const [mobileOpen, setMobileOpen] = useState(false); const [semester, setSemester] = useState(CURRENT_SEMESTER); const [patients, setPatients] = useState(()=>seedPatients.map(patient=>({...patient,semester:patient.semester||CURRENT_SEMESTER}))); const [recordsLoading, setRecordsLoading] = useState(false); const [persistenceStatus, setPersistenceStatus] = useState(null); const isAdmin = user?.role === 'admin';
+  const [accounts, setAccounts] = useState(demoAccounts); const [user, setUser] = useState(null); const [authReady, setAuthReady] = useState(!supabaseConfigured); const [recoveryMode, setRecoveryMode] = useState(false); const [active, setActive] = useState(new URLSearchParams(window.location.search).get('drive')==='connected'?'Google Drive':'Visão geral'); const [selected, setSelected] = useState(null); const [mobileOpen, setMobileOpen] = useState(false); const [semester, setSemester] = useState(CURRENT_SEMESTER); const [patients, setPatients] = useState(()=>seedPatients.map(patient=>({...patient,semester:patient.semester||CURRENT_SEMESTER}))); const [recordsLoading, setRecordsLoading] = useState(false); const [persistenceStatus, setPersistenceStatus] = useState(null); const isAdmin = user?.role === 'admin';
   const semesters = useMemo(()=>[...new Set([CURRENT_SEMESTER,...patients.map(patient=>patient.semester)])].sort().reverse(),[patients]);
   useEffect(() => {
     if (!supabase) return;
@@ -486,7 +501,10 @@ export default function App() {
     setSelected(saved);
     setPersistenceStatus({type:'loading',text:'Prontuário salvo. Criando cópia no Google Drive...'});
     try {
-      await backupClinicalCase(saved.id);
+      const result = await backupClinicalCase(saved.id);
+      saved.driveBackedUpAt = result.backedUpAt;
+      setPatients(current=>current.map(item=>item.id===saved.id?{...item,driveBackedUpAt:result.backedUpAt}:item));
+      setSelected(current=>current?.id===saved.id?{...current,driveBackedUpAt:result.backedUpAt}:current);
       setPersistenceStatus({type:'success',text:successText || 'Prontuário salvo no Supabase e copiado para o Google Drive.'});
     } catch (backupError) {
       setPersistenceStatus({type:'warning',text:`Prontuário salvo no Supabase. Cópia no Drive pendente: ${backupError.message}`});
